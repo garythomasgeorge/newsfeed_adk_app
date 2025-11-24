@@ -5,21 +5,23 @@ A modern, AI-powered news aggregator that scrapes, analyzes, and summarizes news
 ## Features
 
 *   **Automated Harvesting**: Fetches news from RSS feeds (Politics, Technology, Sports, Entertainment).
-*   **AI Analysis**: Uses Gemini 1.5 Flash to generate:
+*   **AI Analysis**: Uses Gemini 2.0 Flash to generate:
     *   **TL;DR Summaries**: Quick 2-3 sentence overviews.
     *   **Detailed Breakdowns**: "What Happened", "Impact", and "Conclusion".
-    *   **Bias Detection**: Labels articles as Left, Center, or Right.
+    *   **Bias Detection**: Labels articles as Left, Lean Left, Center, Lean Right, or Right using hybrid approach (domain reputation + content analysis).
     *   **Topic Tagging**: Automatically categorizes content.
+    *   **Keyword Extraction**: Identifies key entities (people, places, organizations).
 *   **Split-Brain Architecture**:
     *   **Harvester**: Fast collection of raw articles.
     *   **Analyst**: Background processing for deep analysis.
     *   **Librarian**: Natural language search and retrieval.
 *   **Modern UI**:
-    *   Clean, responsive React frontend.
+    *   Clean, responsive React frontend with card-based design.
     *   Dark mode support.
-    *   **Bias Meter**: Visual indicator of article bias.
+    *   **Bias Meter**: Visual indicator of article bias on every card.
     *   **Date Filtering**: Calendar view to browse past news.
     *   **Similar Sources**: Find coverage from other outlets for the same story.
+    *   **Enhanced Article View**: Card-based layout with section dividers and icons.
 
 ## Architecture
 

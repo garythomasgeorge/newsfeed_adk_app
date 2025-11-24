@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import pathlib
 
 app = FastAPI(title="AI News Aggregator")
 
@@ -20,6 +23,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for frontend
+frontend_dist = pathlib.Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
 
 # Initialize Agents
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -234,6 +242,22 @@ async def get_similar_articles(url: str):
     from .database import find_similar_articles
     results = await find_similar_articles(url)
     return results
+
+# Serve frontend for all non-API routes
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    """
+    Catch-all route to serve the React frontend.
+    """
+    # If path starts with /api, it should have been caught by API routes
+    if full_path.startswith("api/"):
+        return {"detail": "Not Found"}
+    
+    # Serve index.html for all other routes (React Router will handle them)
+    index_file = frontend_dist / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return {"detail": "Frontend not built"}
 
 if __name__ == "__main__":
     import uvicorn

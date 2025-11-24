@@ -57,9 +57,9 @@ class HarvesterAgent:
                             article = Article(
                                 url=entry.get("link", ""),
                                 headline=entry.get("title", ""),
-                                summary="Processing...", # Placeholder
-                                tldr_summary="Processing...",
-                                detailed_summary="Analysis in progress...",
+                                summary=entry.get("summary") or entry.get("description") or "Summary unavailable",
+                                tldr_summary=None, # Will be generated
+                                detailed_summary=None, # Will be generated
                                 bias_label=BiasLabel.NOT_AVAILABLE,
                                 topic_tags=[category], # Initial tag from category
                                 processing_status=ProcessingStatus.PENDING,
@@ -121,25 +121,61 @@ class AnalystAgent:
         
         # Let's try to fetch the URL content simply
         
+        # Blocking phrases common in paywalls/anti-bot pages
+        BLOCKING_PHRASES = [
+            "enable javascript",
+            "disable ad blocker",
+            "turn off your ad blocker",
+            "subscribe to read",
+            "subscription required",
+            "sign in to continue",
+            "you have reached your limit",
+            "access to this content is restricted",
+            "please enable cookies"
+        ]
+
         text = ""
         try:
             # Simple fetch (blocking, should be async or in thread)
             loop = asyncio.get_event_loop()
             def fetch_text():
                 try:
-                    resp = requests.get(article.url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
+                    resp = requests.get(article.url, timeout=5, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"})
                     soup = BeautifulSoup(resp.content, 'html.parser')
+                    
+                    # Remove script and style elements
+                    for script in soup(["script", "style", "nav", "footer", "header"]):
+                        script.decompose()
+                        
                     paragraphs = soup.find_all('p')
-                    return " ".join([p.get_text() for p in paragraphs])[:4000]
+                    content = " ".join([p.get_text() for p in paragraphs])
+                    return content[:5000] # Limit to 5000 chars
                 except:
                     return ""
             
             text = await loop.run_in_executor(None, fetch_text)
+            
+            # Check for blocking content
+            text_lower = text.lower()
+            is_blocked = False
+            if len(text) < 200: # Too short, likely failed or just a blurb
+                is_blocked = True
+            else:
+                for phrase in BLOCKING_PHRASES:
+                    if phrase in text_lower:
+                        is_blocked = True
+                        break
+            
+            if is_blocked:
+                print(f"Content blocked or too short for {article.url}. Using RSS summary fallback.")
+                text = article.summary # Fallback to RSS summary
+                
         except Exception as e:
             print(f"Error fetching URL {article.url}: {e}")
+            text = article.summary
             
-        if not text:
-            text = article.headline # Fallback to headline
+        if not text or len(text) < 50:
+            text = f"{article.headline}. {article.summary}" # Fallback to headline + summary
             
         # Load known bias
         known_bias_label = "Unknown"

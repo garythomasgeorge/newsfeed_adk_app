@@ -71,12 +71,67 @@ async def batch_ingest():
     return {"status": "success", "harvested": saved_count, "message": "Harvest complete. Background processing started."}
 
 @app.post("/api/process-queue")
-async def trigger_process_queue(background_tasks: BackgroundTasks):
+async def process_queue(background_tasks: BackgroundTasks):
     """
     Phase 2: Manually triggers processing of pending articles.
     """
     background_tasks.add_task(process_background_queue)
-    return {"status": "success", "message": "Processing queue started in background."}
+    return {"status": "processing_started", "message": "Background processing triggered."}
+
+@app.post("/api/process-backfill")
+async def process_backfill(background_tasks: BackgroundTasks):
+    """
+    Triggers a backfill process for older articles or those missing summaries.
+    """
+    background_tasks.add_task(process_backfill_queue)
+    return {"status": "backfill_started", "message": "Backfill processing triggered."}
+
+async def process_backfill_queue():
+    """
+    Background task to process backfill candidates.
+    """
+    print("Starting backfill processing...", flush=True)
+    from .database import get_backfill_candidates, save_article
+    
+    # Fetch candidates
+    articles_data = await get_backfill_candidates(limit=20)
+    print(f"Found {len(articles_data)} articles needing backfill.", flush=True)
+    
+    for article_data in articles_data:
+        try:
+            # Convert dict to Article object
+            article = Article(**article_data)
+            
+            # Force status to pending if it was legacy/unknown
+            if article.processing_status != ProcessingStatus.PENDING:
+                article.processing_status = ProcessingStatus.PENDING
+            
+            print(f"Backfilling article: {article.headline}", flush=True)
+            
+            # Process with timeout
+            try:
+                processed_article = await asyncio.wait_for(
+                    analyst.process_article(article),
+                    timeout=30.0
+                )
+                await save_article(processed_article)
+                print(f"Successfully backfilled: {processed_article.headline}", flush=True)
+            except asyncio.TimeoutError:
+                print(f"Timeout backfilling article: {article.url}", flush=True)
+                article.processing_status = ProcessingStatus.FAILED
+                await save_article(article)
+            except Exception as e:
+                print(f"Error backfilling article {article.url}: {e}", flush=True)
+                article.processing_status = ProcessingStatus.FAILED
+                await save_article(article)
+                
+            # Small delay to respect rate limits
+            await asyncio.sleep(2)
+            
+        except Exception as e:
+            print(f"Error preparing article for backfill: {e}", flush=True)
+            
+    print("Backfill processing complete.", flush=True)
 
 async def process_background_queue():
     """
@@ -159,9 +214,26 @@ async def search_articles(request: SearchRequest):
     """
     Natural language search via Librarian Agent.
     """
-    query_params = await librarian.translate_query(request.query)
-    results = await search_articles_by_query(query_params)
-    return {"results": results}
+    print(f"Searching for: {request.query}")
+    
+    # 1. Translate query to filters
+    filters = await librarian.translate_query(request.query)
+    print(f"Filters: {filters}")
+    
+    # 2. Execute search
+    from .database import search_articles_by_query
+    results = await search_articles_by_query(filters)
+    
+    return {"filters": filters, "results": results}
+
+@app.get("/api/articles/similar")
+async def get_similar_articles(url: str):
+    """
+    Finds similar articles for a given article URL.
+    """
+    from .database import find_similar_articles
+    results = await find_similar_articles(url)
+    return results
 
 if __name__ == "__main__":
     import uvicorn

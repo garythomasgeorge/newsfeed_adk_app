@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import BiasMeter from '../components/BiasMeter';
 import ReactMarkdown from 'react-markdown'; // We might need to install this, or just render as text for now
@@ -36,8 +37,38 @@ const ArticlePage = () => {
         });
     };
 
+    const [similarArticles, setSimilarArticles] = React.useState([]);
+    const [loadingSimilar, setLoadingSimilar] = React.useState(false);
+    const [showSimilar, setShowSimilar] = React.useState(false);
+
+    // Use relative path to leverage Vite proxy
+    const API_BASE_URL = '/api';
+
+    // ... (existing helper functions)
+
+    const handleViewOtherSources = async () => {
+        if (showSimilar) {
+            setShowSimilar(false);
+            return;
+        }
+
+        setShowSimilar(true);
+        if (similarArticles.length > 0) return; // Already fetched
+
+        setLoadingSimilar(true);
+        try {
+            // Use encodeURIComponent for the URL parameter
+            const response = await axios.get(`${API_BASE_URL}/articles/similar?url=${encodeURIComponent(article.url)}`);
+            setSimilarArticles(response.data);
+        } catch (error) {
+            console.error("Error fetching similar articles:", error);
+        }
+        setLoadingSimilar(false);
+    };
+
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px', fontFamily: 'Inter, sans-serif' }}>
+            {/* ... (existing back button and header) */}
             <button
                 onClick={() => navigate('/')}
                 style={{
@@ -57,7 +88,7 @@ const ArticlePage = () => {
 
             <header style={{ marginBottom: '30px' }}>
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-                    <BiasMeter label={article.bias_label} />
+                    <BiasMeter bias={article.bias_label} />
                     <span style={{ color: '#888' }}>{new Date(article.created_at).toLocaleDateString()}</span>
                     {article.category && (
                         <span style={{
@@ -103,7 +134,65 @@ const ArticlePage = () => {
                 {renderDetailedSummary(article.detailed_summary)}
             </div>
 
-            <div style={{ marginTop: '50px', borderTop: '1px solid #eee', paddingTop: '30px', textAlign: 'center' }}>
+            {/* View Other Sources Section */}
+            <div style={{ marginTop: '40px', borderTop: '1px solid #eee', paddingTop: '30px' }}>
+                <button
+                    onClick={handleViewOtherSources}
+                    style={{
+                        backgroundColor: '#f0f0f0',
+                        border: 'none',
+                        padding: '12px 24px',
+                        borderRadius: '8px',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '20px'
+                    }}
+                >
+                    {showSimilar ? 'Hide Other Sources' : 'View Other Sources'}
+                    <span style={{ fontSize: '0.8rem', color: '#666' }}>Find similar coverage</span>
+                </button>
+
+                {showSimilar && (
+                    <div style={{ animation: 'fadeIn 0.3s ease-in' }}>
+                        {loadingSimilar ? (
+                            <p style={{ color: '#666', fontStyle: 'italic' }}>Finding related articles...</p>
+                        ) : similarArticles.length > 0 ? (
+                            <div style={{ display: 'grid', gap: '15px' }}>
+                                {similarArticles.map(sim => (
+                                    <div key={sim.url}
+                                        onClick={() => navigate('/article', { state: { article: sim } })}
+                                        style={{
+                                            border: '1px solid #eee',
+                                            borderRadius: '8px',
+                                            padding: '15px',
+                                            cursor: 'pointer',
+                                            backgroundColor: '#fff',
+                                            transition: 'transform 0.2s',
+                                            ':hover': { transform: 'translateY(-2px)' }
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                            <BiasMeter bias={sim.bias_label} />
+                                            <span style={{ fontSize: '0.8rem', color: '#888' }}>
+                                                {new URL(sim.url).hostname.replace('www.', '')}
+                                            </span>
+                                        </div>
+                                        <h4 style={{ margin: '5px 0', fontSize: '1.1rem' }}>{sim.headline}</h4>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p style={{ color: '#666' }}>No similar articles found in our database.</p>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div style={{ marginTop: '30px', textAlign: 'center' }}>
                 <a
                     href={article.url}
                     target="_blank"

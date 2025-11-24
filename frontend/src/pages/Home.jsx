@@ -3,6 +3,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import NewsCard from '../components/NewsCard';
 import SearchBar from '../components/SearchBar';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { parseISO } from "date-fns";
 
 // Use relative path to leverage Vite proxy
 const API_BASE_URL = '/api';
@@ -14,7 +17,6 @@ const Home = () => {
     const [view, setView] = useState('feed'); // 'feed' or 'search'
     const [selectedDate, setSelectedDate] = useState('');
     const navigate = useNavigate();
-
     const [availableDates, setAvailableDates] = useState([]);
 
     useEffect(() => {
@@ -72,6 +74,9 @@ const Home = () => {
         navigate('/article', { state: { article } });
     };
 
+    // Convert available date strings to Date objects for the picker
+    const includeDates = availableDates.map(dateStr => parseISO(dateStr));
+
     return (
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
             <header style={{ marginBottom: '50px', textAlign: 'center' }}>
@@ -87,26 +92,25 @@ const Home = () => {
                 </h2>
 
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <select
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid #ddd',
-                            fontFamily: 'inherit',
-                            backgroundColor: '#fff',
-                            cursor: 'pointer',
-                            fontSize: '0.95rem'
+                    <DatePicker
+                        selected={selectedDate ? parseISO(selectedDate) : null}
+                        onChange={(date) => {
+                            if (date) {
+                                // Format back to YYYY-MM-DD for API
+                                const offset = date.getTimezoneOffset();
+                                const adjustedDate = new Date(date.getTime() - (offset * 60 * 1000));
+                                setSelectedDate(adjustedDate.toISOString().split('T')[0]);
+                            } else {
+                                setSelectedDate('');
+                            }
                         }}
-                    >
-                        <option value="">All Dates</option>
-                        {availableDates.map(date => (
-                            <option key={date} value={date}>
-                                {new Date(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </option>
-                        ))}
-                    </select>
+                        includeDates={includeDates}
+                        placeholderText="Filter by Date"
+                        dateFormat="MMM d, yyyy"
+                        isClearable
+                        className="date-picker-input"
+                        wrapperClassName="date-picker-wrapper"
+                    />
 
                     {view === 'search' && (
                         <button onClick={() => { setSelectedDate(''); fetchFeed(); }} style={{
@@ -117,6 +121,27 @@ const Home = () => {
                     )}
                 </div>
             </div>
+
+            {/* Add custom styles for the date picker to match the theme */}
+            <style>{`
+                .date-picker-wrapper {
+                    display: inline-block;
+                }
+                .date-picker-input {
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    border: 1px solid #ddd;
+                    font-family: inherit;
+                    font-size: 0.95rem;
+                    cursor: pointer;
+                    background-color: #fff;
+                    width: 140px;
+                }
+                .react-datepicker__day--disabled {
+                    color: #ccc;
+                    pointer-events: none;
+                }
+            `}</style>
 
             {error && (
                 <div style={{

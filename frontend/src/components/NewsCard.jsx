@@ -49,7 +49,7 @@ const NewsCard = ({ article, onClick }) => {
         </p>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
         {!isPending && <BiasMeter bias={article.bias_label} />}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>

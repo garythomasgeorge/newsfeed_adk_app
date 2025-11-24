@@ -77,6 +77,58 @@ async def get_pending_articles(limit: int = 10) -> List[dict]:
         print(f"Error retrieving pending articles: {e}")
         return []
 
+async def get_backfill_candidates(limit: int = 50) -> List[dict]:
+    """
+    Retrieves articles that need processing.
+    This includes:
+    1. Articles with processing_status='pending'
+    2. Articles where detailed_summary is missing or empty (legacy data)
+    """
+    if not db:
+        return []
+        
+    candidates = []
+    try:
+        # 1. Fetch pending
+        pending_docs = db.collection(COLLECTION_NAME)\
+                 .where("processing_status", "==", "pending")\
+                 .limit(limit)\
+                 .stream()
+        
+        for doc in pending_docs:
+            candidates.append(doc.to_dict())
+            
+        if len(candidates) >= limit:
+            return candidates
+
+        # 2. Fetch missing summaries (legacy)
+        # Note: Firestore doesn't support "where field is null" or "where field is empty string" easily combined with other filters
+        # We'll fetch recent articles and filter in memory for this backfill task
+        recent_docs = db.collection(COLLECTION_NAME)\
+                 .order_by("created_at", direction=firestore.Query.DESCENDING)\
+                 .limit(100)\
+                 .stream()
+                 
+        for doc in recent_docs:
+            data = doc.to_dict()
+            # Check if it's already in candidates
+            if any(c['url'] == data['url'] for c in candidates):
+                continue
+                
+            # Check if it needs processing
+            status = data.get("processing_status")
+            summary = data.get("detailed_summary")
+            
+            if status != "processed" and (not summary or len(summary) < 10):
+                candidates.append(data)
+                if len(candidates) >= limit:
+                    break
+                    
+        return candidates
+    except Exception as e:
+        print(f"Error retrieving backfill candidates: {e}")
+        return []
+
 async def get_available_dates() -> List[str]:
     """
     Retrieves a list of unique dates (YYYY-MM-DD) from stored articles.
@@ -136,3 +188,68 @@ async def search_articles_by_query(query_params: dict) -> List[dict]:
     docs = ref.order_by("created_at", direction=firestore.Query.DESCENDING).limit(20).stream()
     
     return [doc.to_dict() for doc in docs]
+
+async def find_similar_articles(article_id: str, limit: int = 5) -> List[dict]:
+    """
+    Finds similar articles based on topic tags.
+    Prioritizes articles with different bias labels to show diverse perspectives.
+    """
+    if not db:
+        return []
+        
+    try:
+        # 1. Get the target article
+        # article_id is the URL (encoded or raw? The frontend passes the full URL usually)
+        # In save_article we use url.replace("/", "_") as ID. 
+        # Let's try to find it by ID first, if not, query by URL.
+        
+        # Assuming article_id passed from frontend is the actual URL
+        target_ref = db.collection(COLLECTION_NAME).where("url", "==", article_id).limit(1).stream()
+        target_doc = next(target_ref, None)
+        
+        if not target_doc:
+            print(f"Target article not found: {article_id}")
+            return []
+            
+        target_data = target_doc.to_dict()
+        target_tags = target_data.get("topic_tags", [])
+        target_bias = target_data.get("bias_label", "Center")
+        
+        if not target_tags:
+            return []
+            
+        # 2. Query for articles with matching tags
+        # Firestore 'array_contains_any' is perfect here
+        similar_docs = db.collection(COLLECTION_NAME)\
+                         .where("topic_tags", "array_contains_any", target_tags)\
+                         .limit(20)\
+                         .stream()
+                         
+        candidates = []
+        for doc in similar_docs:
+            data = doc.to_dict()
+            if data["url"] == target_data["url"]:
+                continue # Skip self
+            candidates.append(data)
+            
+        # 3. Sort/Filter for diversity
+        # We want to show articles that match tags but have DIFFERENT bias if possible.
+        
+        def diversity_score(article):
+            score = 0
+            # Higher score if bias is different
+            if article.get("bias_label") != target_bias:
+                score += 10
+            # Higher score for more matching tags (simple intersection count)
+            common_tags = set(article.get("topic_tags", [])) & set(target_tags)
+            score += len(common_tags)
+            # Recency boost?
+            return score
+            
+        candidates.sort(key=diversity_score, reverse=True)
+        
+        return candidates[:limit]
+        
+    except Exception as e:
+        print(f"Error finding similar articles: {e}")
+        return []

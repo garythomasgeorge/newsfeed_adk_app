@@ -141,8 +141,34 @@ class AnalystAgent:
         if not text:
             text = article.headline # Fallback to headline
             
+        # Load known bias
+        known_bias_label = "Unknown"
+        try:
+            from urllib.parse import urlparse
+            domain = urlparse(article.url).netloc.replace("www.", "")
+            
+            # Load bias map (cache this in production)
+            with open("known_bias.json", "r") as f:
+                bias_map = json.load(f)
+                
+            # Check for exact match or substring match
+            if domain in bias_map:
+                known_bias_label = bias_map[domain]
+            else:
+                # Try to find partial match (e.g. edition.cnn.com -> cnn.com)
+                for key in bias_map:
+                    if key in domain:
+                        known_bias_label = bias_map[key]
+                        break
+        except Exception as e:
+            print(f"Error loading known bias: {e}")
+
         prompt = f"""
         Analyze the following news article text and provide a structured summary.
+        
+        Context:
+        - Source Domain: {domain}
+        - Typical Source Bias: {known_bias_label} (Use this as a baseline, but evaluate the specific text. If the text is neutral despite the source, label it 'Center'. If it reflects the source's bias, label it accordingly.)
         
         Article Text:
         {text[:4000]}
@@ -151,7 +177,7 @@ class AnalystAgent:
         - "headline": A catchy, neutral headline (or keep original if good).
         - "tldr": A 2-3 sentence quick summary (max 50 words).
         - "detailed_summary": A structured summary with 3 sections: "What Happened", "Impact/Reactions", and "Conclusion". Total length should be 150-200 words. Use Markdown formatting for the sections (e.g. **What Happened**: ...).
-        - "bias_label": One of "Left", "Center", "Right".
+        - "bias_label": One of "Left", "Lean Left", "Center", "Lean Right", "Right".
         - "topic_tags": A list of 3-5 relevant tags.
         
         JSON Output:

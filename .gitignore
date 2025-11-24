@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Environment variables
+.env
+backend/.env
+
+# Sensitive files
+deploy_commands.sh
+backend/service-account.json
+*.json
+
+# IDE
+.vscode/
+.idea/
+
+# Debug scripts
+check_status.py
+debug_backfill.py
+list_models.py
+test_processing.py
+debug_db.py
+debug_feeds.py

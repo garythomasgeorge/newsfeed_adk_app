@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+google-cloud-firestore
+google-generativeai
+beautifulsoup4
+requests
+feedparser
+python-dotenv
+pydantic

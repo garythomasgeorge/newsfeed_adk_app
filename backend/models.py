@@ -5,7 +5,9 @@ from enum import Enum
 
 class BiasLabel(str, Enum):
     LEFT = "Left"
+    LEAN_LEFT = "Lean Left"
     CENTER = "Center"
+    LEAN_RIGHT = "Lean Right"
     RIGHT = "Right"
     NOT_AVAILABLE = "N/A"
 
@@ -22,6 +24,7 @@ class Article(BaseModel):
     detailed_summary: Optional[str] = None
     bias_label: BiasLabel = BiasLabel.NOT_AVAILABLE
     topic_tags: List[str] = []
+    keywords: List[str] = []
     processing_status: ProcessingStatus = ProcessingStatus.PROCESSED # Default to processed for existing
     created_at: datetime = Field(default_factory=datetime.utcnow)
     expire_at: datetime

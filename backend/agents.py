@@ -92,7 +92,7 @@ class AnalystAgent:
         self.api_key = api_key
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-2.0-flash')
         else:
             self.model = None
             print("Warning: Gemini API Key not provided.")
@@ -148,7 +148,9 @@ class AnalystAgent:
             domain = urlparse(article.url).netloc.replace("www.", "")
             
             # Load bias map (cache this in production)
-            with open("known_bias.json", "r") as f:
+            import os
+            bias_file = os.path.join(os.path.dirname(__file__), "known_bias.json")
+            with open(bias_file, "r") as f:
                 bias_map = json.load(f)
                 
             # Check for exact match or substring match
@@ -178,7 +180,9 @@ class AnalystAgent:
         - "tldr": A 2-3 sentence quick summary (max 50 words).
         - "detailed_summary": A structured summary with 3 sections: "What Happened", "Impact/Reactions", and "Conclusion". Total length should be 150-200 words. Use Markdown formatting for the sections (e.g. **What Happened**: ...).
         - "bias_label": One of "Left", "Lean Left", "Center", "Lean Right", "Right".
+        - "bias_label": One of "Left", "Lean Left", "Center", "Lean Right", "Right".
         - "topic_tags": A list of 3-5 relevant tags.
+        - "keywords": A list of 3-5 specific entities (people, places, organizations) mentioned.
         
         JSON Output:
         """
@@ -198,6 +202,7 @@ class AnalystAgent:
             # Merge tags
             new_tags = data.get("topic_tags", [])
             article.topic_tags = list(set(article.topic_tags + new_tags))
+            article.keywords = data.get("keywords", [])
             article.processing_status = ProcessingStatus.PROCESSED
             
             return article
@@ -211,7 +216,7 @@ class LibrarianAgent:
         self.api_key = api_key
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel('gemini-2.0-flash')
         else:
             self.model = None
 

@@ -118,8 +118,22 @@ async def get_backfill_candidates(limit: int = 50) -> List[dict]:
             # Check if it needs processing
             status = data.get("processing_status")
             summary = data.get("detailed_summary")
+            keywords = data.get("keywords")
             
-            if status != "processed" and (not summary or len(summary) < 10):
+            # Criteria for backfill:
+            # 1. Not processed (legacy or pending)
+            # 2. Missing summary
+            # 3. Missing keywords (new feature)
+            needs_update = False
+            
+            if status != "processed":
+                needs_update = True
+            elif not summary or len(summary) < 10:
+                needs_update = True
+            elif not keywords or len(keywords) == 0:
+                needs_update = True
+                
+            if needs_update:
                 candidates.append(data)
                 if len(candidates) >= limit:
                     break
@@ -213,24 +227,60 @@ async def find_similar_articles(article_id: str, limit: int = 5) -> List[dict]:
             
         target_data = target_doc.to_dict()
         target_tags = target_data.get("topic_tags", [])
+        target_keywords = target_data.get("keywords", [])
         target_bias = target_data.get("bias_label", "Center")
+        target_domain = ""
+        try:
+            from urllib.parse import urlparse
+            target_domain = urlparse(target_data["url"]).netloc.replace("www.", "")
+        except:
+            pass
         
-        if not target_tags:
+        if not target_tags and not target_keywords:
             return []
             
-        # 2. Query for articles with matching tags
-        # Firestore 'array_contains_any' is perfect here
-        similar_docs = db.collection(COLLECTION_NAME)\
+        # 2. Query for articles with matching keywords OR tags
+        # Firestore limitation: can't do OR across different fields easily or multiple array-contains
+        # We'll prioritize keywords if available, otherwise tags
+        
+        candidates = []
+        seen_urls = set()
+        seen_urls.add(target_data["url"])
+        
+        # Helper to process results
+        def process_results(docs):
+            for doc in docs:
+                data = doc.to_dict()
+                url = data.get("url", "")
+                if url in seen_urls:
+                    continue
+                    
+                # Strict Domain Filter
+                try:
+                    domain = urlparse(url).netloc.replace("www.", "")
+                    if domain == target_domain:
+                        continue
+                except:
+                    pass
+                    
+                candidates.append(data)
+                seen_urls.add(url)
+
+        # Query by keywords first (more specific)
+        if target_keywords:
+            keyword_docs = db.collection(COLLECTION_NAME)\
+                             .where("keywords", "array_contains_any", target_keywords[:10])\
+                             .limit(20)\
+                             .stream()
+            process_results(keyword_docs)
+            
+        # If not enough, query by tags
+        if len(candidates) < limit and target_tags:
+            tag_docs = db.collection(COLLECTION_NAME)\
                          .where("topic_tags", "array_contains_any", target_tags)\
                          .limit(20)\
                          .stream()
-                         
-        candidates = []
-        for doc in similar_docs:
-            data = doc.to_dict()
-            if data["url"] == target_data["url"]:
-                continue # Skip self
-            candidates.append(data)
+            process_results(tag_docs)
             
         # 3. Sort/Filter for diversity
         # We want to show articles that match tags but have DIFFERENT bias if possible.
@@ -240,10 +290,12 @@ async def find_similar_articles(article_id: str, limit: int = 5) -> List[dict]:
             # Higher score if bias is different
             if article.get("bias_label") != target_bias:
                 score += 10
-            # Higher score for more matching tags (simple intersection count)
+            # Keyword match boost
+            common_keywords = set(article.get("keywords", [])) & set(target_keywords)
+            score += len(common_keywords) * 5
+            # Tag match boost
             common_tags = set(article.get("topic_tags", [])) & set(target_tags)
             score += len(common_tags)
-            # Recency boost?
             return score
             
         candidates.sort(key=diversity_score, reverse=True)

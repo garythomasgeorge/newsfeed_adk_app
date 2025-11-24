@@ -21,6 +21,7 @@ backend/.env
 # Sensitive files
 deploy_commands.sh
 backend/service-account.json
+application_default_credentials.json
 *.json
 
 # IDE

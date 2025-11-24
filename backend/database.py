@@ -59,16 +59,21 @@ async def get_recent_articles(limit: int = 50, filter_date: datetime.date = None
         print(f"Error retrieving articles: {e}")
         return []
 
-async def get_pending_articles(limit: int = 10) -> List[dict]:
+async def get_pending_articles(limit: int = 10, statuses: List[str] = None) -> List[dict]:
     """
-    Retrieves articles with processing_status='pending'.
+    Retrieves articles with specified processing statuses.
+    Default is ['pending'].
     """
     if not db:
         return []
     
+    if statuses is None:
+        statuses = ["pending"]
+    
     try:
+        # Use 'in' operator for multiple statuses
         docs = db.collection(COLLECTION_NAME)\
-                 .where("processing_status", "==", "pending")\
+                 .where("processing_status", "in", statuses)\
                  .limit(limit)\
                  .stream()
         

@@ -148,7 +148,7 @@ async def process_background_queue():
     print("Starting background processing queue...", flush=True)
     from .database import get_pending_articles
     
-    pending_articles_data = await get_pending_articles(limit=10)
+    pending_articles_data = await get_pending_articles(limit=10, statuses=["pending", "failed"])
     print(f"Found {len(pending_articles_data)} pending articles.", flush=True)
     
     if not pending_articles_data:

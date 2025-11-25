@@ -77,28 +77,41 @@ class AnalystAgent(Agent):
         full_content = scrape_article_content(article.url, article.summary)
         
         prompt = f"""
-        Analyze this article:
+        Analyze this article and provide ONLY valid JSON output (no markdown, no explanations):
+        
         URL: {article.url}
         Headline: {article.headline}
-        Content: {full_content}
+        Content: {full_content[:3000]}
         
-        Provide a JSON output with:
-        - "headline": (str)
-        - "tldr": (str, max 50 words)
-        - "detailed_summary": (str, markdown with sections: What Happened, Impact, Conclusion)
-        - "bias_label": (str, one of "Left", "Lean Left", "Center", "Lean Right", "Right")
-        - "topic_tags": (list of str)
-        - "keywords": (list of str)
+        Return JSON with these exact fields:
+        {{
+          "headline": "string",
+          "tldr": "string (max 50 words)",
+          "detailed_summary": "markdown string with sections",
+          "bias_label": "one of: Left, Lean Left, Center, Lean Right, Right",
+          "topic_tags": ["tag1", "tag2"],
+          "keywords": ["keyword1", "keyword2"]
+        }}
+        
+        IMPORTANT: Return ONLY the JSON object, nothing else.
         """
         
         try:
             response = self._model.generate_content(prompt)
             text = response.text if hasattr(response, 'text') else str(response)
             
+            # Extract JSON from markdown code blocks if present
             if "```json" in text:
                 text = text.split("```json")[1].split("```")[0].strip()
             elif "```" in text:
                 text = text.split("```")[1].split("```")[0].strip()
+            
+            # Try to find JSON object boundaries if not in code block
+            if not text.startswith('{'):
+                start = text.find('{')
+                end = text.rfind('}')
+                if start != -1 and end != -1:
+                    text = text[start:end+1]
                 
             data = json.loads(text)
             
@@ -109,9 +122,14 @@ class AnalystAgent(Agent):
             article.topic_tags = list(set(article.topic_tags + data.get("topic_tags", [])))
             article.keywords = data.get("keywords", [])
             article.processing_status = ProcessingStatus.PROCESSED
+            print(f"Analyst: Successfully processed {article.url}", flush=True)
             
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error for {article.url}: {e}", flush=True)
+            print(f"Response text (first 500 chars): {text[:500] if 'text' in locals() else 'N/A'}", flush=True)
+            article.processing_status = ProcessingStatus.FAILED
         except Exception as e:
-            print(f"Error analyzing article {article.url}: {e}")
+            print(f"Error analyzing article {article.url}: {e}", flush=True)
             article.processing_status = ProcessingStatus.FAILED
             
         return article

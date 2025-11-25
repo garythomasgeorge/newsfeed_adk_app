@@ -19,14 +19,14 @@ class HarvesterAgent(Agent):
     Agent responsible for fetching news articles from RSS feeds.
     """
     def __init__(self, feeds: Dict[str, List[str]]):
-        # Store feeds before calling super().__init__ to avoid Pydantic errors
-        self._feeds = feeds
         super().__init__(
             name="Harvester",
             model="gemini-2.0-flash",
             tools=[],
             instruction="You are a news harvester. Your goal is to fetch the latest articles from the provided RSS feeds."
         )
+        # Store feeds AFTER calling super().__init__ to avoid Pydantic clearing them
+        self._feeds = feeds
 
     def fetch_new_articles(self) -> List[Article]:
         raw_articles = fetch_rss_articles(self._feeds)
@@ -118,15 +118,15 @@ class NewsChiefAgent(Agent):
     Root agent that orchestrates the news gathering and processing.
     """
     def __init__(self, harvester: HarvesterAgent, analyst: AnalystAgent):
-        # Store subagents before calling super().__init__
-        self._harvester = harvester
-        self._analyst = analyst
         super().__init__(
             name="NewsChief",
             model="gemini-2.0-flash",
             tools=[],
             instruction="You are the Chief Editor. You manage the news feed."
         )
+        # Store subagents AFTER calling super().__init__
+        self._harvester = harvester
+        self._analyst = analyst
 
     async def refresh_news(self) -> Dict[str, int]:
         print("Chief: Starting news refresh cycle...")

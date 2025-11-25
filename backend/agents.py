@@ -162,6 +162,8 @@ class NewsChiefAgent(Agent):
             nonlocal processed_count, failed_count
             async with sem:
                 res = await self._analyst.process_article(art)
+                # Save article to Firestore
+                await save_article(res)
                 if res.processing_status == ProcessingStatus.PROCESSED:
                     processed_count += 1
                 else:

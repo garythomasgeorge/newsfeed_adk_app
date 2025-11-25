@@ -1,6 +1,6 @@
 # AI News Aggregator
 
-A modern, AI-powered news aggregator that scrapes, analyzes, and summarizes news from multiple RSS feeds. It uses Google's Gemini AI to generate structured summaries, detect bias, and tag articles.
+A modern, AI-powered news aggregator built with the **Google Gen AI Agent Development Kit (ADK)**. The app uses a hierarchical agent architecture to scrape, analyze, and summarize news from multiple RSS feeds using Google's Gemini AI.
 
 ## Features
 
@@ -11,10 +11,11 @@ A modern, AI-powered news aggregator that scrapes, analyzes, and summarizes news
     *   **Bias Detection**: Labels articles as Left, Lean Left, Center, Lean Right, or Right using hybrid approach (domain reputation + content analysis).
     *   **Topic Tagging**: Automatically categorizes content.
     *   **Keyword Extraction**: Identifies key entities (people, places, organizations).
-*   **Split-Brain Architecture**:
-    *   **Harvester**: Fast collection of raw articles.
-    *   **Analyst**: Background processing for deep analysis.
-    *   **Librarian**: Natural language search and retrieval.
+*   **ADK Agent Architecture**:
+    *   **NewsChiefAgent** (Root): Orchestrates the entire news workflow.
+    *   **HarvesterAgent**: Fast collection of raw articles from RSS feeds.
+    *   **AnalystAgent**: Background processing for deep analysis and summarization.
+    *   **LibrarianAgent**: Natural language search query translation.
 *   **Modern UI**:
     *   Clean, responsive React frontend with card-based design.
     *   Dark mode support.
@@ -25,19 +26,20 @@ A modern, AI-powered news aggregator that scrapes, analyzes, and summarizes news
 
 ## Architecture
 
-The system is built with a decoupled architecture to ensure scalability and performance.
+The system is built with the **Google ADK framework** using a hierarchical agent architecture for scalability and modularity.
 
-*   **Backend**: Python (FastAPI)
+*   **Backend**: Python (FastAPI) + Google ADK
 *   **Frontend**: React (Vite)
 *   **Database**: Google Cloud Firestore
-*   **AI Engine**: Google Gemini API
+*   **AI Engine**: Google Gemini API (via ADK)
+*   **Agent Framework**: Google Gen AI Agent Development Kit (ADK)
 *   **Task Queue**: Python `asyncio` background tasks (can be scaled to Cloud Tasks).
 
 ## Setup Instructions
 
 ### Prerequisites
 
-*   Python 3.9+
+*   Python 3.10+ (recommended for full ADK support, 3.9+ minimum)
 *   Node.js 16+
 *   Google Cloud Project with Firestore enabled.
 *   Gemini API Key.
@@ -87,13 +89,13 @@ Use the provided startup script to run both backend and frontend:
 
 ## API Endpoints
 
-*   `POST /api/batch-ingest`: Triggers the Harvester to fetch new articles.
-*   `POST /api/process-queue`: Triggers the Analyst to process pending articles.
+*   `POST /api/batch-ingest`: Triggers the **NewsChiefAgent** to orchestrate news harvesting and analysis.
+*   `POST /api/process-queue`: Triggers the **AnalystAgent** to process pending articles.
 *   `POST /api/process-backfill`: Force-processes older articles.
 *   `GET /api/feed`: Retrieves the latest news feed.
 *   `GET /api/available-dates`: Returns dates with available news.
 *   `GET /api/articles/similar`: Finds related articles.
-*   `POST /api/search`: Natural language search.
+*   `POST /api/search`: Natural language search (powered by **LibrarianAgent**).
 
 ## Deployment
 

@@ -17,48 +17,18 @@ const ArticlePage = () => {
         );
     }
 
-    // Helper to render markdown-like sections with card-based design
+    // Helper to render markdown detailed summary
     const renderDetailedSummary = (text) => {
-        if (!text) return <p>No detailed summary available.</p>;
-
-        const sections = [];
-        const lines = text.split('\n');
-        let currentSection = null;
-        let currentContent = [];
-
-        const sectionIcons = {
-            'What Happened': '📰',
-            'Impact': '💥',
-            'Reactions': '💬',
-            'Conclusion': '🎯'
-        };
-
-        lines.forEach((line, index) => {
-            if (line.trim().startsWith('**') && line.includes(':')) {
-                // Save previous section
-                if (currentSection) {
-                    sections.push({
-                        title: currentSection,
-                        content: currentContent.join(' ')
-                    });
-                }
-                // Start new section
-                const titleMatch = line.match(/\*\*(.+?)\*\*:/);
-                if (titleMatch) {
-                    currentSection = titleMatch[1];
-                    currentContent = [line.split('**:')[1]];
-                }
-            } else if (line.trim()) {
-                currentContent.push(line);
-            }
-        });
-
-        // Add last section
-        if (currentSection) {
-            sections.push({
-                title: currentSection,
-                content: currentContent.join(' ')
-            });
+        if (!text || text.trim() === '') {
+            return (
+                <div className="article-card detailed-analysis-card">
+                    <div className="card-header">
+                        <span className="card-icon">📋</span>
+                        <h3>Detailed Analysis</h3>
+                    </div>
+                    <p>No detailed summary available.</p>
+                </div>
+            );
         }
 
         return (
@@ -67,17 +37,9 @@ const ArticlePage = () => {
                     <span className="card-icon">📋</span>
                     <h3>Detailed Analysis</h3>
                 </div>
-                {sections.map((section, idx) => (
-                    <div key={idx} className="analysis-section">
-                        <div className="section-header">
-                            <span className="section-icon">{sectionIcons[section.title] || '•'}</span>
-                            <h4>{section.title}</h4>
-                        </div>
-                        <p>
-                            {section.content}
-                        </p>
-                    </div>
-                ))}
+                <div className="markdown-content">
+                    <ReactMarkdown>{text}</ReactMarkdown>
+                </div>
             </div>
         );
     };

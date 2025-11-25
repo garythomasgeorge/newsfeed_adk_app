@@ -7,6 +7,7 @@ from google.adk.tools import AgentTool
 import google.generativeai as genai
 
 from .models import Article, BiasLabel, ProcessingStatus
+from .tools import fetch_rss_articles, scrape_article_content
 from .database import get_recent_articles, save_article, search_articles_by_query, cleanup_articles
 
 # Configure GenAI (ensure API key is set)

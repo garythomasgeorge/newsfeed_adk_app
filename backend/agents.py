@@ -184,20 +184,26 @@ class AnalystAgent:
             domain = urlparse(article.url).netloc.replace("www.", "")
             
             # Load bias map (cache this in production)
-            import os
-            bias_file = os.path.join(os.path.dirname(__file__), "known_bias.json")
-            with open(bias_file, "r") as f:
-                bias_map = json.load(f)
-                
-            # Check for exact match or substring match
-            if domain in bias_map:
-                known_bias_label = bias_map[domain]
+            import pathlib
+            # Get the directory where this file (agents.py) is located
+            current_dir = pathlib.Path(__file__).parent.absolute()
+            bias_file = current_dir / "known_bias.json"
+            
+            if bias_file.exists():
+                with open(bias_file, "r") as f:
+                    bias_map = json.load(f)
+                    
+                # Check for exact match or substring match
+                if domain in bias_map:
+                    known_bias_label = bias_map[domain]
+                else:
+                    # Try to find partial match (e.g. edition.cnn.com -> cnn.com)
+                    for key, val in bias_map.items():
+                        if key in domain:
+                            known_bias_label = val
+                            break
             else:
-                # Try to find partial match (e.g. edition.cnn.com -> cnn.com)
-                for key in bias_map:
-                    if key in domain:
-                        known_bias_label = bias_map[key]
-                        break
+                print(f"Warning: Bias file not found at {bias_file}")
         except Exception as e:
             print(f"Error loading known bias: {e}")
 

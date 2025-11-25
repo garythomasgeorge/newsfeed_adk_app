@@ -54,6 +54,9 @@ class AnalystAgent(Agent):
     Agent responsible for analyzing articles, summarizing them, and detecting bias.
     """
     def __init__(self):
+        # Create a GenerativeModel for direct LLM calls
+        self._model = genai.GenerativeModel('gemini-2.0-flash')
+        
         super().__init__(
             name="Analyst",
             model="gemini-2.0-flash",
@@ -87,7 +90,7 @@ class AnalystAgent(Agent):
         """
         
         try:
-            response = self.run(prompt) 
+            response = self._model.generate_content(prompt)
             text = response.text if hasattr(response, 'text') else str(response)
             
             if "```json" in text:
@@ -156,6 +159,9 @@ class LibrarianAgent(Agent):
     Agent responsible for translating natural language queries into database filters.
     """
     def __init__(self):
+        # Create a GenerativeModel for direct LLM calls
+        self._model = genai.GenerativeModel('gemini-2.0-flash')
+        
         super().__init__(
             name="Librarian",
             model="gemini-2.0-flash",
@@ -171,7 +177,7 @@ class LibrarianAgent(Agent):
         Output JSON format: {{ "keywords": [], "topic_tags": [], "bias_label": "" }}
         """
         try:
-            response = self.run(prompt)
+            response = self._model.generate_content(prompt)
             text = response.text if hasattr(response, 'text') else str(response)
             if text.startswith("```json"):
                 text = text[7:-3]

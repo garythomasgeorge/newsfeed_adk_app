@@ -54,9 +54,6 @@ class AnalystAgent(Agent):
     Agent responsible for analyzing articles, summarizing them, and detecting bias.
     """
     def __init__(self):
-        # Create a GenerativeModel for direct LLM calls
-        self._model = genai.GenerativeModel('gemini-2.0-flash')
-        
         super().__init__(
             name="Analyst",
             model="gemini-2.0-flash",
@@ -70,6 +67,8 @@ class AnalystAgent(Agent):
             
             Output must be valid JSON matching the schema provided in the prompt."""
         )
+        # Create a GenerativeModel for direct LLM calls (AFTER super init to avoid Pydantic clearing it)
+        self._model = genai.GenerativeModel('gemini-2.0-flash')
 
     async def process_article(self, article: Article) -> Article:
         prompt = f"""
@@ -159,9 +158,6 @@ class LibrarianAgent(Agent):
     Agent responsible for translating natural language queries into database filters.
     """
     def __init__(self):
-        # Create a GenerativeModel for direct LLM calls
-        self._model = genai.GenerativeModel('gemini-2.0-flash')
-        
         super().__init__(
             name="Librarian",
             model="gemini-2.0-flash",
@@ -170,6 +166,8 @@ class LibrarianAgent(Agent):
             Available fields: keywords (list), topic_tags (list), bias_label (str).
             Output JSON."""
         )
+        # Create a GenerativeModel for direct LLM calls (AFTER super init to avoid Pydantic clearing it)
+        self._model = genai.GenerativeModel('gemini-2.0-flash')
 
     async def translate_query(self, natural_language_query: str) -> dict:
         prompt = f"""

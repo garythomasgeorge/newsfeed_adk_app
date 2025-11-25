@@ -310,3 +310,115 @@ async def find_similar_articles(article_id: str, limit: int = 5) -> List[dict]:
     except Exception as e:
         print(f"Error finding similar articles: {e}")
         return []
+
+async def cleanup_articles():
+    """
+    Enforces retention policies:
+    1. Max 5 days history (delete older)
+    2. Max 100 articles total (keep newest)
+    3. Max 20 articles per day (keep newest for that day)
+    """
+    if not db:
+        return
+
+    try:
+        print("Starting database cleanup...", flush=True)
+        
+        # 1. Fetch all articles (metadata only to save bandwidth if possible, but we need dates)
+        # Firestore doesn't support "select keys only" easily without cost.
+        # We'll fetch all and process in memory for this scale (100-200 docs is fine).
+        docs = db.collection(COLLECTION_NAME).stream()
+        all_articles = []
+        for doc in docs:
+            data = doc.to_dict()
+            data['id'] = doc.id
+            # Ensure created_at is datetime
+            if isinstance(data.get('created_at'), str):
+                try:
+                    data['created_at'] = datetime.fromisoformat(data['created_at'].replace('Z', '+00:00'))
+                except:
+                    pass
+            all_articles.append(data)
+
+        print(f"Total articles before cleanup: {len(all_articles)}", flush=True)
+        
+        articles_to_delete = set()
+        
+        # Policy 1: Max 5 days history
+        cutoff_date = datetime.utcnow() - timedelta(days=5)
+        valid_articles = []
+        
+        for art in all_articles:
+            created_at = art.get('created_at')
+            if not created_at:
+                articles_to_delete.add(art['id'])
+                continue
+                
+            # Handle if created_at is not datetime (e.g. still string or other)
+            if not isinstance(created_at, datetime):
+                 # Try to parse if it's a string, else mark for deletion if invalid
+                 articles_to_delete.add(art['id'])
+                 continue
+
+            # Make offset-naive for comparison if needed
+            if created_at.tzinfo:
+                created_at = created_at.replace(tzinfo=None)
+                
+            if created_at < cutoff_date:
+                articles_to_delete.add(art['id'])
+            else:
+                valid_articles.append(art)
+                
+        print(f"Articles to delete (older than 5 days): {len(articles_to_delete)}", flush=True)
+
+        # Policy 2: Max 100 articles total
+        # Sort by date desc
+        valid_articles.sort(key=lambda x: x.get('created_at', datetime.min), reverse=True)
+        
+        if len(valid_articles) > 100:
+            overflow = valid_articles[100:]
+            valid_articles = valid_articles[:100]
+            for art in overflow:
+                articles_to_delete.add(art['id'])
+            print(f"Articles to delete (global limit > 100): {len(overflow)}", flush=True)
+
+        # Policy 3: Max 20 articles per day
+        from collections import defaultdict
+        articles_by_day = defaultdict(list)
+        
+        for art in valid_articles:
+            created_at = art.get('created_at')
+            if isinstance(created_at, datetime):
+                day_key = created_at.strftime('%Y-%m-%d')
+                articles_by_day[day_key].append(art)
+        
+        for day, day_articles in articles_by_day.items():
+            if len(day_articles) > 20:
+                # They are already sorted desc
+                day_overflow = day_articles[20:]
+                print(f"Day {day} has {len(day_articles)} articles. Deleting {len(day_overflow)}.", flush=True)
+                for art in day_overflow:
+                    articles_to_delete.add(art['id'])
+
+        # Execute Deletions
+        if articles_to_delete:
+            print(f"Deleting {len(articles_to_delete)} articles...", flush=True)
+            batch = db.batch()
+            count = 0
+            for doc_id in articles_to_delete:
+                ref = db.collection(COLLECTION_NAME).document(doc_id)
+                batch.delete(ref)
+                count += 1
+                if count >= 400: # Firestore batch limit is 500
+                    batch.commit()
+                    batch = db.batch()
+                    count = 0
+            
+            if count > 0:
+                batch.commit()
+            print("Cleanup complete.", flush=True)
+        else:
+            print("No articles to delete.", flush=True)
+
+    except Exception as e:
+        print(f"Error during database cleanup: {e}", flush=True)

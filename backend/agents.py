@@ -7,7 +7,7 @@ from google.adk.tools import AgentTool
 import google.generativeai as genai
 
 from .models import Article, BiasLabel, ProcessingStatus
-from .tools import fetch_rss_articles, scrape_article_content
+from .database import get_recent_articles, save_article, search_articles_by_query, cleanup_articles
 
 # Configure GenAI (ensure API key is set)
 api_key = os.getenv("GEMINI_API_KEY")
@@ -153,6 +153,10 @@ class NewsChiefAgent(Agent):
         processed_articles = await asyncio.gather(*tasks)
         
         print(f"Chief: Finished processing. Success: {processed_count}, Failed: {failed_count}")
+        
+        # Trigger cleanup to enforce retention policies
+        await cleanup_articles()
+        
         return {"total": len(articles), "processed": processed_count, "failed": failed_count, "articles": processed_articles}
 
 class LibrarianAgent(Agent):

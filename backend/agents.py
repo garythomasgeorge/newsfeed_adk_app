@@ -71,15 +71,17 @@ class AnalystAgent(Agent):
         self._model = genai.GenerativeModel('gemini-2.0-flash')
 
     async def process_article(self, article: Article) -> Article:
+        # Manually scrape content since we are using direct model calls
+        print(f"Analyst: Scraping {article.url}...", flush=True)
+        full_content = scrape_article_content(article.url, article.summary)
+        
         prompt = f"""
         Analyze this article:
         URL: {article.url}
         Headline: {article.headline}
-        Initial Summary: {article.summary}
+        Content: {full_content}
         
-        Use the scrape_article_content tool to get the full text.
-        
-        Then provide a JSON output with:
+        Provide a JSON output with:
         - "headline": (str)
         - "tldr": (str, max 50 words)
         - "detailed_summary": (str, markdown with sections: What Happened, Impact, Conclusion)
